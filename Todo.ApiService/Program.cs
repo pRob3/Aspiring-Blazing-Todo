@@ -42,19 +42,24 @@ app.MapGraphQL("/graphql");
 // playing with Server Sent Events
 app.MapGet("/live-orders", (CancellationToken cancellationToken) =>
 {
-    async IAsyncEnumerable<SseItem<BoatPartOrder>> GetOrders(
+    async IAsyncEnumerable<SseItem<OrderNotification>> GetOrders(
         [EnumeratorCancellation] CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
-            await Task.Delay(1500, ct);
+            try
+            {
+                await Task.Delay(1500, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                yield break;
+            }
 
-
-            yield return new SseItem<BoatPartOrder>(BoatPartOrderGen.CreateOrder(), "order")
+            yield return new SseItem<OrderNotification>(BoatPartOrderGen.CreateOrder(), "order")
             {
                 ReconnectionInterval = TimeSpan.FromMinutes(1),
             };
-
         }
     }
     return TypedResults.ServerSentEvents(GetOrders(cancellationToken));

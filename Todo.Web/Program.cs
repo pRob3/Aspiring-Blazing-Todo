@@ -47,19 +47,26 @@ app.MapGet("/live-orders", async (IHttpClientFactory factory, HttpContext contex
 
     using var request = new HttpRequestMessage(HttpMethod.Get, "/live-orders");
 
-    using var response = await client.SendAsync(
-        request,
-        HttpCompletionOption.ResponseHeadersRead,
-        context.RequestAborted);
+    try
+    {
+        using var response = await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            context.RequestAborted);
 
-    response.EnsureSuccessStatusCode();
+        response.EnsureSuccessStatusCode();
 
-    // Forward SSE content type and disable buffering/caching
-    context.Response.Headers.ContentType = "text/event-stream";
-    context.Response.Headers.CacheControl = "no-cache";
-    context.Response.Headers.Connection = "keep-alive";
+        // Forward SSE content type and disable buffering/caching
+        context.Response.Headers.ContentType = "text/event-stream";
+        context.Response.Headers.CacheControl = "no-cache";
+        context.Response.Headers.Connection = "keep-alive";
 
-    await response.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
+        await response.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
+    }
+    catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+    {
+        // Client navigated away — expected, not an error
+    }
 });
 
 

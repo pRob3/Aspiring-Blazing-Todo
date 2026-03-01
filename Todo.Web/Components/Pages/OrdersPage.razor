@@ -5,6 +5,8 @@
 @using Todo.Shared.Models
 @inject IJSRuntime JS
 
+<PageTitle>SSE Testing</PageTitle>
+
 <h3>Live orders</h3>
 
 @if (!string.IsNullOrWhiteSpace(Error))
@@ -28,7 +30,7 @@
     private DotNetObjectReference<OrdersPage>? _dotNetRef;
 
     private string? Error;
-    private readonly List<BoatPartOrder> Orders = new();
+    private readonly List<OrderNotification> Orders = new();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -41,7 +43,7 @@
     }
 
     [JSInvokable]
-    public Task OnOrderEvent(BoatPartOrder order)
+    public Task OnOrderEvent(OrderNotification order)
     {
         Orders.Insert(0, order); // newest first
 
@@ -67,11 +69,17 @@
             if (_module is not null)
                 await _module.InvokeVoidAsync("stopLiveOrders");
         }
+        catch (JSDisconnectedException) { }
+        catch (TaskCanceledException) { }
         finally
         {
             _dotNetRef?.Dispose();
             if (_module is not null)
-                await _module.DisposeAsync();
+            {
+                try { await _module.DisposeAsync(); }
+                catch (JSDisconnectedException) { }
+                catch (TaskCanceledException) { }
+            }
         }
     }
 }

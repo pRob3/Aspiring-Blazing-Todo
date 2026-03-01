@@ -19,9 +19,9 @@ public class BoatPartOrderGen
     ];
 
 
-    public static BoatPartOrder CreateOrder()
+    public static OrderNotification CreateOrder()
     {
-        return new BoatPartOrder
+        return new OrderNotification
         {
             Name = _boatParts[Random.Shared.Next(0, 9)],
             Price = Random.Shared.Next(100, 1000).ToString()
