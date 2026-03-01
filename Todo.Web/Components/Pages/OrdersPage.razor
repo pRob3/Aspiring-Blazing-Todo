@@ -1,0 +1,77 @@
+﻿@page "/orders"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+
+@using Todo.Shared.Models
+@inject IJSRuntime JS
+
+<h3>Live orders</h3>
+
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="alert alert-danger" role="alert">@Error</div>
+}
+
+<ul class="list-group" id="orders">
+    @foreach (var o in Orders)
+    {
+        <li class="list-group-item">
+            Order: @o.Name x €@(o.Price)
+        </li>
+    }
+</ul>
+
+@code {
+    private const int MaxOrders = 10;
+
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<OrdersPage>? _dotNetRef;
+
+    private string? Error;
+    private readonly List<BoatPartOrder> Orders = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/liveOrders.js");
+        _dotNetRef = DotNetObjectReference.Create(this);
+
+        await _module.InvokeVoidAsync("startLiveOrders", "/live-orders", _dotNetRef);
+    }
+
+    [JSInvokable]
+    public Task OnOrderEvent(BoatPartOrder order)
+    {
+        Orders.Insert(0, order); // newest first
+
+        if (Orders.Count > MaxOrders)
+            Orders.RemoveRange(MaxOrders, Orders.Count - MaxOrders);
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task OnSseError(string message)
+    {
+        Error = message;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_module is not null)
+                await _module.InvokeVoidAsync("stopLiveOrders");
+        }
+        finally
+        {
+            _dotNetRef?.Dispose();
+            if (_module is not null)
+                await _module.DisposeAsync();
+        }
+    }
+}
