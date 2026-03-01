@@ -1,0 +1,206 @@
+﻿@page "/todos"
+@rendermode InteractiveServer
+
+@using Todo.Shared.Models
+@inject Todo.Web.Services.TodoGraphQlClient Api
+
+<div class="container py-4" style="max-width: 820px;">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h2 class="mb-1">Todos</h2>
+            <div class="text-body-secondary small">
+                @if (IsLoading)
+                {
+                    <span>Loading your list…</span>
+                }
+                else
+                {
+                    <span>@Todos.Count item(s)</span>
+                }
+            </div>
+        </div>
+
+        <button class="btn btn-outline-secondary btn-sm" @onclick="Refresh" disabled="@IsLoading">
+            <span class="me-1">↻</span> Refresh
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Error))
+    {
+        <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
+            <div class="fw-semibold">Error</div>
+            <div class="flex-grow-1">@Error</div>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="row g-2 align-items-center">
+                <div class="col-12 col-md">
+                    <input class="form-control"
+                           @bind="NewTitle" @bind:event="oninput"
+                           @onkeydown="OnNewTitleKeyDown"
+                           placeholder="Add a todo…"
+                           aria-label="Todo title" />
+                </div>
+
+                <div class="col-12 col-md-auto d-grid">
+                    <button class="btn btn-primary"
+                            @onclick="Add"
+                            disabled="@IsLoading">
+                        Add
+                    </button>
+                </div>
+            </div>
+
+            <hr class="my-4" />
+
+            @if (IsLoading)
+            {
+                <div class="d-flex align-items-center gap-2 text-body-secondary">
+                    <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+                    <span>Loading…</span>
+                </div>
+            }
+            else if (Todos.Count == 0)
+            {
+                <div class="text-center py-4">
+                    <div class="text-body-secondary">No todos yet.</div>
+                    <div class="small text-body-secondary">Add one above to get started.</div>
+                </div>
+            }
+            else
+            {
+                <div class="list-group">
+                    @foreach (var t in Todos)
+                    {
+                        <div class="list-group-item d-flex align-items-center gap-3">
+                            <div class="form-check m-0">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       checked="@t.IsDone"
+                                       @onchange="() => Toggle(t.Id)"
+                                       aria-label="Toggle todo" />
+                            </div>
+
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="@(t.IsDone ? "text-decoration-line-through opacity-75" : "")">
+                                        @t.Title
+                                    </span>
+
+                                    @if (t.IsDone)
+                                    {
+                                        <span class="badge text-bg-success">Done</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-secondary">Open</span>
+                                    }
+                                </div>
+
+                                <div class="small text-body-secondary">
+                                    Created @t.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                </div>
+                            </div>
+
+                            <button class="btn btn-outline-danger btn-sm"
+                                    title="Delete"
+                                    @onclick="() => Delete(t.Id)"
+                                    disabled="@IsLoading">
+                                Delete
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly List<TodoItem> Todos = new();
+    private string NewTitle = "";
+    private bool IsLoading = true;
+    private string? Error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Refresh();
+    }
+
+    private async Task Refresh()
+    {
+        try
+        {
+            Error = null;
+            IsLoading = true;
+
+            var items = await Api.GetTodosAsync();
+            Todos.Clear();
+            Todos.AddRange(items);
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task Add()
+    {
+        var title = (NewTitle ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(title))
+            return;
+
+        try
+        {
+            Error = null;
+            NewTitle = "";
+
+            await Api.AddTodoAsync(title);
+            await Refresh();
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    private async Task OnNewTitleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await Add();
+    }
+
+    private async Task Toggle(Guid id)
+    {
+        try
+        {
+            Error = null;
+            await Api.ToggleTodoAsync(id);
+            await Refresh();
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        try
+        {
+            Error = null;
+            await Api.DeleteTodoAsync(id);
+            await Refresh();
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+}
